@@ -1,0 +1,41 @@
+[project]
+name = "nypl-api-bridge"
+version = "0.1.0"
+description = "MCP server for the NYPL Digital Collections Repo API (v2)"
+authors = [
+    { name = "Tristan Roddis", email = "tristanr@cogapp.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "fastmcp>=4.2.5",
+    "httpx>=0.28.1",
+    "anthropic[mcp]>=2.13.0",
+    "streamlit>=1.67.0",
+    "python-dotenv>=1.2.4",
+]
+
+[project.scripts]
+nypl-api-bridge = "nypl_api_bridge.server:main"
+nypl-chat = "nypl_api_bridge.launch:main"
+
+[build-system]
+requires = ["uv_build>=0.9.22,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.5.0",
+    "ruff>=0.17.6",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

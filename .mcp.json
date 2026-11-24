@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "nypl": {
+      "command": "uv",
+      "args": ["run", "nypl-api-bridge"],
+      "env": { "NYPL_API_TOKEN": "${NYPL_API_TOKEN}" }
+    }
+  }
+}

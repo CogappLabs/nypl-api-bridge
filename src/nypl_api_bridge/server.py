@@ -1,15 +1,20 @@
 """FastMCP server exposing the NYPL Digital Collections Repo API (v2) as task-shaped tools."""
 
+import logging
 import os
 import sys
+import time
 from typing import Annotated, Any
 
 from fastmcp import FastMCP
+from fastmcp.server.middleware import Middleware, MiddlewareContext
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from nypl_api_bridge.api import CollectionView, IdentifierType, NyplApi, build_http_client
-from nypl_api_bridge.logs import configure_logging
+from nypl_api_bridge.logs import configure_logging, has_turn_id, new_turn_id, preview, reset_turn_id, set_turn_id
+
+log = logging.getLogger(__name__)
 
 INSTRUCTIONS = """\
 Tools for the New York Public Library Digital Collections (Repo API v2).
@@ -32,8 +37,41 @@ Page = Annotated[int, Field(ge=1, description="1-based page number")]
 PerPage = Annotated[int, Field(ge=1, le=100, description="Results per page (API max is 500; capped at 100 here)")]
 
 
+class ToolCallLogging(Middleware):
+    """Log every tool call the server handles, whichever client made it (chat app, Claude Code, claude.ai...)."""
+
+    async def on_call_tool(self, context: MiddlewareContext, call_next: Any) -> Any:
+        # Calls from the chat app already carry its turn ID; give calls from other clients their own,
+        # so the tool call and the NYPL requests it makes share one tag.
+        token = None if has_turn_id() else set_turn_id(new_turn_id())
+        try:
+            return await self._logged_call(context, call_next)
+        finally:
+            if token is not None:
+                reset_turn_id(token)
+
+    async def _logged_call(self, context: MiddlewareContext, call_next: Any) -> Any:
+        name, args = context.message.name, context.message.arguments or {}
+        log.info("MCP tool call: %s(%s)", name, preview(args, 1000))
+        started = time.perf_counter()
+        try:
+            result = await call_next(context)
+        except Exception as e:
+            log.warning("MCP tool %s failed after %.0f ms: %s", name, _ms(started), e)
+            raise
+        text = "".join(getattr(block, "text", "") for block in result.content)
+        log.info("MCP tool %s returned %d chars in %.0f ms: %s", name, len(text), _ms(started), preview(text))
+        log.debug("MCP tool %s result (full):\n%s", name, text)
+        return result
+
+
+def _ms(started: float) -> float:
+    return (time.perf_counter() - started) * 1000
+
+
 def create_server(api: NyplApi) -> FastMCP:
     mcp = FastMCP("NYPL Digital Collections", instructions=INSTRUCTIONS)
+    mcp.add_middleware(ToolCallLogging())
 
     @mcp.tool(annotations=READ_ONLY)
     async def search_items(

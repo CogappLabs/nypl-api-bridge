@@ -86,7 +86,7 @@ The server can also run over HTTP, so any MCP client can connect to it by URL. *
 
 - **Endpoints:** `/mcp` for MCP and `/health` for health checks. `index.py` in the repository root is the entrypoint Vercel serves.
 - **Deploy:** import the repository at <https://vercel.com/new>, or run `vercel deploy` from this folder. Add `NYPL_API_TOKEN` under **Settings → Environment Variables**. The server won't start without it.
-- **Logs:** on Vercel the server logs only to stderr, which appears in the project's **Logs** tab, because the filesystem there is read-only.
+- **Logs:** on Vercel the server logs only to stderr, which appears in the project's **Logs** tab, because the filesystem there is read-only. Each tool call shows its arguments and a result preview. To see full results and raw NYPL responses too, set `NYPL_LOG_LEVEL=DEBUG` as an environment variable and redeploy.
 - **Test locally:** `NYPL_API_TOKEN=... uv run uvicorn index:app --port 8000` serves it at <http://localhost:8000/mcp>.
 
 To connect once it's deployed:
@@ -124,6 +124,7 @@ All tools are read-only.
 Both the chat app and the MCP server log each step of a question: the question, each Claude call (stop reason, model, request ID, token and cache usage), each tool call and its result, and every NYPL HTTP request (full URL, status, time, size).
 
 - **Turn IDs:** in the chat app, every line for one question has the same tag, such as `[turn 4ed74d16]`. To see one question from start to finish, run `grep 'turn 4ed74d16' logs/nypl.log`.
+- **MCP server:** logs every tool call it handles, whichever client sent it: the tool name and arguments, then a preview of the result with its size and time. A tool call and the NYPL requests it makes share one turn ID.
 - **Terminal:** INFO level by default, written to stderr. Set `NYPL_LOG_LEVEL=DEBUG` to see full detail there too.
 - **File:** `logs/nypl.log` in the working directory (or `NYPL_LOG_DIR`). It is always at DEBUG, so it also has full tool results, raw NYPL response bodies (up to 4,000 characters) and Claude's full text. It rotates at 5 MB.
 - **Anthropic SDK internals:** set `ANTHROPIC_LOG=debug` to also see the SDK's own HTTP logging.

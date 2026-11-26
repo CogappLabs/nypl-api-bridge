@@ -1,12 +1,14 @@
 """The HTTP app (nypl_api_bridge.remote) as a hosting platform would serve it, with NYPL mocked."""
 
 import json
+import logging
 from collections.abc import Iterator
 
 import httpx
 import pytest
 from starlette.testclient import TestClient
 
+from nypl_api_bridge import logs
 from nypl_api_bridge.api import NyplApi, build_http_client
 from nypl_api_bridge.remote import create_app
 
@@ -52,3 +54,32 @@ def test_calls_a_tool(client: TestClient) -> None:
     result = rpc(client, "tools/call", {"name": "get_total_items", "arguments": {}})["result"]
     assert not result.get("isError"), result
     assert "123" in json.dumps(result)
+
+
+class Recorder(logging.Handler):
+    """Captures (message, turn ID) pairs; the turn ID is read in the logging call's own context."""
+
+    def __init__(self) -> None:
+        super().__init__(logging.DEBUG)
+        self.lines: list[tuple[str, str]] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.lines.append((record.getMessage(), logs._turn_id.get()))
+
+
+def test_logs_tool_calls_with_one_turn_id(client: TestClient) -> None:
+    logger = logging.getLogger("nypl_api_bridge")
+    recorder, old_level = Recorder(), logger.level
+    logger.addHandler(recorder)
+    logger.setLevel(logging.DEBUG)
+    try:
+        rpc(client, "tools/call", {"name": "get_total_items", "arguments": {}})
+    finally:
+        logger.removeHandler(recorder)
+        logger.setLevel(old_level)
+
+    starts = ("MCP tool call: get_total_items", "NYPL GET", "MCP tool get_total_items returned")
+    found = {start: [tid for msg, tid in recorder.lines if msg.startswith(start)] for start in starts}
+    assert all(found.values()), recorder.lines
+    turn_ids = {tid for tids in found.values() for tid in tids}
+    assert len(turn_ids) == 1 and logs.NO_TURN_ID not in turn_ids, recorder.lines

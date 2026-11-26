@@ -21,7 +21,8 @@ ROOT_LOGGER = "nypl_api_bridge"
 LOG_FILE_NAME = "nypl.log"
 FORMAT = "%(asctime)s %(levelname)-7s [turn %(turn_id)s] %(name)s: %(message)s"
 
-_turn_id: contextvars.ContextVar[str] = contextvars.ContextVar("turn_id", default="--------")
+NO_TURN_ID = "--------"
+_turn_id: contextvars.ContextVar[str] = contextvars.ContextVar("turn_id", default=NO_TURN_ID)
 
 
 def new_turn_id() -> str:
@@ -35,6 +36,10 @@ def set_turn_id(turn_id: str) -> contextvars.Token[str]:
 
 def reset_turn_id(token: contextvars.Token[str]) -> None:
     _turn_id.reset(token)
+
+
+def has_turn_id() -> bool:
+    return _turn_id.get() != NO_TURN_ID
 
 
 class _TurnIdFilter(logging.Filter):

@@ -11,3 +11,6 @@ wheels/
 
 # secrets for APIs
 .env
+
+# request/turn logs (see nypl_api_bridge/logs.py)
+logs/

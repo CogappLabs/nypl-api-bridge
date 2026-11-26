@@ -77,3 +77,32 @@ async def test_no_persona_message_when_persona_unchanged() -> None:
         on_tool_call=lambda name, args: None,
     )
     assert [m["role"] for m in history] == ["user", "assistant"]
+
+
+async def test_turn_is_traced_in_logs(caplog: Any) -> None:
+    messages = ScriptedMessages(
+        [
+            SimpleNamespace(
+                stop_reason="tool_use",
+                content=[block(type="tool_use", id="tu_1", name="search_items", input={"query": "coney island"})],
+            ),
+            SimpleNamespace(stop_reason="end_turn", content=[block(type="text", text="Found one.")]),
+        ]
+    )
+    with caplog.at_level("DEBUG", logger="nypl_api_bridge"):
+        await run_turn(
+            anthropic_client=SimpleNamespace(beta=SimpleNamespace(messages=messages)),
+            nypl_api=make_api(),
+            history=[],
+            question="Old photos of Coney Island?",
+            persona_change=None,
+            on_tool_call=lambda name, args: None,
+        )
+
+    lines = [r.getMessage() for r in caplog.records]
+    assert any(line.startswith("Question: Old photos of Coney Island?") for line in lines)
+    assert any('search_items({"query": "coney island"})' in line for line in lines)
+    assert any("NYPL GET https://api.repo.nypl.org/api/v2/items/search?q=coney+island" in line for line in lines)
+    assert any("Claude text: Found one." in line for line in lines)
+    assert any(line.startswith("Turn done: stop_reason=end_turn, 2 Claude calls, 1 tool calls") for line in lines)
+    assert not any("Token token" in line for line in lines)  # the NYPL token must never be logged

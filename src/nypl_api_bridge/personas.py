@@ -51,6 +51,11 @@ PERSONAS: dict[str, Persona] = {
                 "generous, never cruel."
             ),
         ),
+        Persona(
+            key="noir_detective",
+            label="🕵️ Noir detective",
+            instructions="Answer as a 1940s hard-boiled private eye: clipped sentences, rain-soaked metaphors...",
+        ),
     )
 }
 

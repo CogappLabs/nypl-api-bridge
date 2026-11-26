@@ -3,11 +3,17 @@
 Docs: https://api.repo.nypl.org/
 """
 
+import logging
 import re
+import time
 from typing import Any, Literal
 
 import httpx
 from fastmcp.exceptions import ToolError
+
+from nypl_api_bridge.logs import preview
+
+log = logging.getLogger(__name__)
 
 BASE_URL = "https://api.repo.nypl.org/api/v2/"
 DEFAULT_TIMEOUT_SECONDS = 30.0
@@ -52,6 +58,10 @@ def unwrap(payload: Any) -> Any:
     return payload
 
 
+def _ms(started: float) -> float:
+    return (time.perf_counter() - started) * 1000
+
+
 def build_http_client(token: str, transport: httpx.AsyncBaseTransport | None) -> httpx.AsyncClient:
     return httpx.AsyncClient(
         base_url=BASE_URL,
@@ -68,7 +78,21 @@ class NyplApi:
         self._http = http
 
     async def _get(self, path: str, params: dict[str, Any] | None) -> Any:
-        response = await self._http.get(path, params=params)
+        started = time.perf_counter()
+        try:
+            response = await self._http.get(path, params=params)
+        except httpx.HTTPError as e:
+            log.warning("NYPL GET %s%s failed after %.0f ms: %r", path, f" {params}" if params else "", _ms(started), e)
+            raise
+        # The token travels in the Authorization header, so the logged URL is safe to keep.
+        log.info(
+            "NYPL GET %s -> %d (%.0f ms, %d bytes)",
+            response.request.url,
+            response.status_code,
+            _ms(started),
+            len(response.content),
+        )
+        log.debug("NYPL response body: %s", preview(response.text, 4000))
         if response.status_code == 401:
             raise ToolError("NYPL API rejected the token (401). Check NYPL_API_TOKEN.")
         if response.status_code == 404:

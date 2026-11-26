@@ -9,6 +9,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from nypl_api_bridge.api import CollectionView, IdentifierType, NyplApi, build_http_client
+from nypl_api_bridge.logs import configure_logging
 
 INSTRUCTIONS = """\
 Tools for the New York Public Library Digital Collections (Repo API v2).
@@ -160,6 +161,7 @@ def main() -> None:
             file=sys.stderr,
         )
         raise SystemExit(1)
+    configure_logging()  # stderr + file only: stdout carries the MCP stdio protocol
     create_server(NyplApi(build_http_client(token, transport=None))).run()
 
 

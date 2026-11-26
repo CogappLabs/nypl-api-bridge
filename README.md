@@ -28,7 +28,7 @@ You need [uv](https://docs.astral.sh/uv/) installed. It provides Python 3.13 aut
 
 ## The chat app
 
-- **Choosing a persona:** pick one in the sidebar: 💬 Standard Claude (the default, with no character voice), 🚕 Taxi driver from Queens, 🪶 Founding father or 🎭 Broadway star. You can switch partway through a conversation, and the next reply uses the new voice.
+- **Choosing a persona:** pick one in the sidebar: 💬 Standard Claude (the default, with no character voice), 🚕 Taxi driver from Queens, 🪶 Founding father, 🎭 Broadway star or 🕵️ Noir detective. You can switch partway through a conversation, and the next reply uses the new voice.
 - **The persona changes only the voice.** Facts come only from the NYPL tools, and Claude is told never to invent items, dates or links. It may show public-domain images, but only using links the API returned.
 - **Watching the tool calls:** a status panel lists each tool call as it runs.
 - **Starting over:** **New conversation** in the sidebar clears the chat.
@@ -49,8 +49,10 @@ Persona(
     key="noir_detective",
     label="🕵️ Noir detective",
     instructions="Answer as a 1940s hard-boiled private eye: clipped sentences, rain-soaked metaphors...",
-),
+)
 ```
+
+Put it inside the tuple of entries, with a comma after the closing parenthesis.
 
 It appears in the sidebar the next time you start the app.
 
@@ -101,6 +103,17 @@ All tools are read-only.
 - **UUID checks:** UUIDs are checked before any request is made.
 - **Endpoints left out:** `POST /items/counts` (its request format isn't documented), `/items/roots` (one huge unpaginated list), `/items/collection/all` (the docs don't say how it differs from `/items/collection`) and the raw ALTO OCR endpoints. `get_plain_text` covers the useful part of the OCR endpoints.
 - **Rate limit:** NYPL allows 10,000 requests per day per token.
+
+## Logging
+
+Both the chat app and the MCP server log each step of a question: the question, each Claude call (stop reason, model, request ID, token and cache usage), each tool call and its result, and every NYPL HTTP request (full URL, status, time, size).
+
+- **Turn IDs:** in the chat app, every line for one question has the same tag, such as `[turn 4ed74d16]`. To see one question from start to finish, run `grep 'turn 4ed74d16' logs/nypl.log`.
+- **Terminal:** INFO level by default, written to stderr. Set `NYPL_LOG_LEVEL=DEBUG` to see full detail there too.
+- **File:** `logs/nypl.log` in the working directory (or `NYPL_LOG_DIR`). It is always at DEBUG, so it also has full tool results, raw NYPL response bodies (up to 4,000 characters) and Claude's full text. It rotates at 5 MB.
+- **Anthropic SDK internals:** set `ANTHROPIC_LOG=debug` to also see the SDK's own HTTP logging.
+
+The NYPL token is sent in a header, so it never appears in logged URLs.
 
 ## Development
 

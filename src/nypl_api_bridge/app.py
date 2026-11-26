@@ -1,6 +1,7 @@
 """Streamlit chat UI. Run with: uv run nypl-chat"""
 
 import asyncio
+import logging
 import os
 from typing import Any
 
@@ -10,7 +11,11 @@ import streamlit as st
 
 from nypl_api_bridge.api import NyplApi, build_http_client
 from nypl_api_bridge.chat import ToolCallHook, TurnResult, run_turn
+from nypl_api_bridge.logs import configure_logging, new_turn_id, reset_turn_id, set_turn_id
 from nypl_api_bridge.personas import PERSONAS, Persona
+
+configure_logging()
+log = logging.getLogger("nypl_api_bridge.app")
 
 STOP_REASON_NOTES = {
     "refusal": "Claude declined to answer that one.",
@@ -78,24 +83,31 @@ if question := st.chat_input("Ask about maps, photographs, menus, manuscripts…
         st.caption(persona.label)
         history = st.session_state.history
         checkpoint = len(history)
-        with st.status("Searching the collections…") as status:
-            try:
-                result = asyncio.run(
-                    answer(
-                        token=nypl_token,
-                        history=history,
-                        question=question,
-                        persona_change=persona_change,
-                        on_tool_call=lambda name, args: status.write(f"`{name}` {args}"),
+        # asyncio.run copies this context, so every log line from Claude, MCP and NYPL calls gets the turn ID.
+        turn_token = set_turn_id(new_turn_id())
+        log.info("New question from the UI (persona %s)", persona.key)
+        try:
+            with st.status("Searching the collections…") as status:
+                try:
+                    result = asyncio.run(
+                        answer(
+                            token=nypl_token,
+                            history=history,
+                            question=question,
+                            persona_change=persona_change,
+                            on_tool_call=lambda name, args: status.write(f"`{name}` {args}"),
+                        )
                     )
-                )
-            except (anthropic.APIError, httpx.HTTPError) as e:
-                # Error boundary: drop this turn's partial messages so the next request starts from a valid history.
-                del history[checkpoint:]
-                status.update(label="Something went wrong", state="error")
-                st.error(f"{type(e).__name__}: {e}")
-                st.stop()
-            status.update(label="Done", state="complete", expanded=False)
+                except (anthropic.APIError, httpx.HTTPError) as e:
+                    # Error boundary: drop this turn's partial messages so the next request starts from a valid history.
+                    log.exception("Turn failed; discarding %d partial messages", len(history) - checkpoint)
+                    del history[checkpoint:]
+                    status.update(label="Something went wrong", state="error")
+                    st.error(f"{type(e).__name__}: {e}")
+                    st.stop()
+                status.update(label="Done", state="complete", expanded=False)
+        finally:
+            reset_turn_id(turn_token)
         text = result.text or STOP_REASON_NOTES.get(result.stop_reason or "", "(no reply)")
         st.markdown(text)
 

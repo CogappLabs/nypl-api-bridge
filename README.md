@@ -80,6 +80,21 @@ Add the server to the client's MCP configuration:
 
 The server uses stdio. To run it on its own, use `NYPL_API_TOKEN=... uv run nypl-api-bridge`.
 
+### Hosting it online (Vercel)
+
+The server can also run over HTTP, so any MCP client can connect to it by URL. **It has no login:** anyone with the URL can use it, and every request uses your NYPL token's daily quota of 10,000 requests.
+
+- **Endpoints:** `/mcp` for MCP and `/health` for health checks. `index.py` in the repository root is the entrypoint Vercel serves.
+- **Deploy:** import the repository at <https://vercel.com/new>, or run `vercel deploy` from this folder. Add `NYPL_API_TOKEN` under **Settings → Environment Variables**. The server won't start without it.
+- **Logs:** on Vercel the server logs only to stderr, which appears in the project's **Logs** tab, because the filesystem there is read-only.
+- **Test locally:** `NYPL_API_TOKEN=... uv run uvicorn index:app --port 8000` serves it at <http://localhost:8000/mcp>.
+
+To connect once it's deployed:
+
+- **Claude Code:** `claude mcp add --transport http nypl https://<your-project>.vercel.app/mcp`
+- **claude.ai:** **Settings → Connectors → Add custom connector**, with the same URL.
+- **Claude Desktop and other clients:** use the client's "remote" or "HTTP" server option with the same URL.
+
 ### Tools
 
 All tools are read-only.
@@ -129,11 +144,14 @@ uv run ruff format . # format
 src/nypl_api_bridge/
   api.py        # async client for the NYPL v2 API (auth, input checks, response unwrapping)
   server.py     # FastMCP server: tool definitions and instructions for Claude
+  remote.py     # the same server over HTTP, for hosting online
   personas.py   # persona definitions and the base system prompt
   chat.py       # one chat turn: Claude plus MCP tool calls
   app.py        # Streamlit UI
   launch.py     # `nypl-chat` entry point: loads .env, checks keys, starts Streamlit
-tests/          # offline tests for the server and the chat loop
+  logs.py       # logging setup: stderr plus logs/nypl.log, with a turn ID per question
+tests/          # offline tests for the server, the HTTP app and the chat loop
+index.py        # Vercel entrypoint: builds the HTTP app from environment variables
 ```
 
 ## Troubleshooting

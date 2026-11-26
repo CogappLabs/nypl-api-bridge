@@ -43,7 +43,7 @@ class _TurnIdFilter(logging.Filter):
         return True
 
 
-def configure_logging() -> None:
+def configure_logging(log_to_file: bool = True) -> None:
     """Attach console and file handlers to the package logger. Safe to call repeatedly (Streamlit reruns scripts)."""
     logger = logging.getLogger(ROOT_LOGGER)
     if any(getattr(h, "_nypl_handler", False) for h in logger.handlers):
@@ -57,15 +57,18 @@ def configure_logging() -> None:
     console.setLevel(os.environ.get("NYPL_LOG_LEVEL", "INFO").upper())
     handlers: list[logging.Handler] = [console]
 
-    log_dir = Path(os.environ.get("NYPL_LOG_DIR", "logs"))
-    try:
-        log_dir.mkdir(parents=True, exist_ok=True)
-        file_handler = RotatingFileHandler(log_dir / LOG_FILE_NAME, maxBytes=5_000_000, backupCount=3, encoding="utf-8")
-        file_handler.setLevel(logging.DEBUG)
-        handlers.append(file_handler)
-    except OSError as e:
-        # e.g. an MCP client launching the server with an unwritable working directory: console logging still works.
-        print(f"nypl_api_bridge: file logging disabled ({e})", file=sys.stderr)
+    if log_to_file:
+        log_dir = Path(os.environ.get("NYPL_LOG_DIR", "logs"))
+        try:
+            log_dir.mkdir(parents=True, exist_ok=True)
+            file_handler = RotatingFileHandler(
+                log_dir / LOG_FILE_NAME, maxBytes=5_000_000, backupCount=3, encoding="utf-8"
+            )
+            file_handler.setLevel(logging.DEBUG)
+            handlers.append(file_handler)
+        except OSError as e:
+            # e.g. an MCP client launching the server with an unwritable working directory: console logging still works.
+            print(f"nypl_api_bridge: file logging disabled ({e})", file=sys.stderr)
 
     for handler in handlers:
         handler.setFormatter(formatter)

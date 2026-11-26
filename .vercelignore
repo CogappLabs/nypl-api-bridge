@@ -1,0 +1,11 @@
+# Keep secrets and local-only files out of `vercel deploy` uploads.
+.env
+.env.*
+!.env.example
+logs/
+tests/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.claude/
